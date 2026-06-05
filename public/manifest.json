@@ -1,0 +1,21 @@
+{
+  "name": "ScreenOpps",
+  "short_name": "ScreenOpps",
+  "description": "Stream movies and TV shows",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "/logologo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logologo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
