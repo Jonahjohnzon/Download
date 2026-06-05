@@ -43,8 +43,9 @@ const getFileSize = async (url) => {
       `${worker}/info?path=${encodeURIComponent(url)}`
     );
    console.log("WORKER RESPONSE STATUS:", res.status);
-    console.log("TEXT:", await res.text());
+   
     const { size } = await res.json();
+    console.log(size)
    
     return size ? formatSize(size) : "Unknown";
   } catch (err){
