@@ -37,11 +37,13 @@ const formatSize = (bytes) => {
 
 const getFileSize = async (url) => {
   try {
+    console.log("HELLO")
     const worker = "https://morning-meadow-f3f0.hadezanubiz.workers.dev";
     const res = await fetch(
       `${worker}/info?path=${encodeURIComponent(url)}`
     );
-   
+   console.log("WORKER RESPONSE STATUS:", res.status);
+    console.log("TEXT:", await res.text());
     const { size } = await res.json();
    
     return size ? formatSize(size) : "Unknown";
