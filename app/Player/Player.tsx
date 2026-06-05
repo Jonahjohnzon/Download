@@ -60,7 +60,7 @@ const downloadFile = ({ url, quality }: { url: string; quality: string }) => {
           >
             <div>
               <p className="font-semibold">{source.quality}</p>
-              <p className="font-semibold">{source.size}</p>
+              {source.size != "Unknown" && <p className="font-semibold">{source.size}</p>}
             </div>
 
          <button
