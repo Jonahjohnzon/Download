@@ -1,4 +1,3 @@
-import React from 'react'
 import Body from './Body'
 
 const page = async ({params}:{params:{id:string}}) => {

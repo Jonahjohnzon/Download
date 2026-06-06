@@ -12,7 +12,7 @@ interface MediaParams {
     Episode?: string
 }
 
-export const useServerFallback = async (server: string, params: MediaParams): Promise<boolean> => {
+export const ServerFallback = async (server: string, params: MediaParams): Promise<boolean> => {
 
         try {
            
@@ -20,8 +20,13 @@ export const useServerFallback = async (server: string, params: MediaParams): Pr
             const response = params.Type === 'movie'
                 ? await GetMovieFetch({ Tmdb_Id: params.paramId, Type: 'movie', Server: server })
                 : await GetMovieFetch({ Tmdb_Id: params.paramId, Type: 'tv', Season: params.Season, Episode: params.Episode, Server: server })
-                
-            if (response.error || !response.sources?.length) return false
+           
+            if (response.error || !response.sources?.length)
+            {
+                store.title = response?.title || ""
+                store.poster = response?.poster || ""
+                return false
+            }
             store.ParamId = params.paramId
             store.Type = params.Type
             store.ServerinUse = server

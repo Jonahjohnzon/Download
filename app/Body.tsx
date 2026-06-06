@@ -10,10 +10,10 @@ const Body = ({children}:any) => {
     <body  className={` ${dosis.className} antialiased select-none`}
     suppressHydrationWarning>
       <Script
-        src="https://quge5.com/88/tag.min.js"
-        strategy="afterInteractive"
-        data-zone="246496"
-        data-cfasync="false"
+        // src="https://quge5.com/88/tag.min.js"
+        // strategy="afterInteractive"
+        // data-zone="246496"
+        // data-cfasync="false"
       />
       {children}</body>
   )
