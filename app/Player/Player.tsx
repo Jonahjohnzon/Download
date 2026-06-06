@@ -395,7 +395,7 @@ const Player = () => {
         }
       `}</style>
 
-      <div className="vv-root">
+      <div className="vv-root" suppressHydrationWarning>
         {/* Blurred poster backdrop */}
         <div
           className="vv-backdrop"

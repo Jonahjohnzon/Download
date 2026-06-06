@@ -284,8 +284,8 @@ export default function Home() {
         }
       `}</style>
 
-      <div className="page">
-        <div className="card">
+      <div className="page" suppressHydrationWarning>
+        <div className="card" suppressHydrationWarning>
 
           {/* Logo */}
           <div className="logo">
