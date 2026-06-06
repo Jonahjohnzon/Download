@@ -24,7 +24,7 @@ const Body = ({ paramId }: { paramId: string }) => {
       GetData()
     }, [])
 
-    if (loading) return <div></div>
+    if (loading) return <div className="w-10 h-10 rounded-full border-2 border-white/20 border-t-white animate-spin"></div>
 
     
     return <Player />

@@ -1,6 +1,6 @@
 import { encryptItemId } from './encrypt';
 import { getCurrentWorker } from '../proxy';
-
+import ufs from 'url-file-size';
 const BASE_URL = 'https://vidrock.ru/';
 const SUB_BASE_URL = 'https://sub.vdrk.site';
 
@@ -37,15 +37,14 @@ const formatSize = (bytes) => {
 
 const getFileSize = async (url) => {
   try {
-    console.log("HELLO")
     const worker = "https://morning-meadow-f3f0.hadezanubiz.workers.dev";
     const res = await fetch(
       `${worker}/info?path=${encodeURIComponent(url)}`
     );
-   console.log("WORKER RESPONSE STATUS:", res.status);
+
    
     const { size } = await res.json();
-    console.log(size)
+    
    
     return size ? formatSize(size) : "Unknown";
   } catch (err){
@@ -79,7 +78,8 @@ async function getSources(media) {
        const sources = await Promise.all(
          sorted.map(async ({ url, resolution }) => {
             const size = await getFileSize(url);
-
+         
+            
              return {
              url: proxyUrl(url, `${media.Title} - ${resolution}p`),
             size,

@@ -25,7 +25,9 @@ const Body = ({ paramId, season, episode }: { paramId: string; season: string; e
         GetData()
     }, [])
 
-    if (loading) return <div></div>
+    if (loading) return <div className="w-10 h-10 rounded-full border-2 border-white/20 border-t-white animate-spin">
+
+    </div>
 
 
     return <Player />
