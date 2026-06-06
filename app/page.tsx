@@ -6,9 +6,9 @@ const BASE = "https://db.screenopps.com";
 
 const QUICK_TESTS = [
   { type: "movie" as const, title: "Fight Club", id: "550" },
-  { type: "movie" as const, title: "Inception", id: "27205" },
+  { type: "movie" as const, title: "Deadpool & Wolverine", id: "533535" },
   { type: "tv" as const, title: "Breaking Bad", id: "1396", season: "1", episode: "1" },
-  { type: "tv" as const, title: "Peaky Blinders", id: "94997", season: "2", episode: "3" },
+  { type: "tv" as const, title: "HOTD", id: "94997", season: "1", episode: "1" },
 ];
 
 export default function Home() {

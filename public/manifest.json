@@ -1,7 +1,7 @@
 {
   "name": "ScreenOpps",
   "short_name": "ScreenOpps",
-  "description": "Stream movies and TV shows",
+  "description": "Download movies and TV shows",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
