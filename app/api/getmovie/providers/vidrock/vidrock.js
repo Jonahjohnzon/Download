@@ -1,6 +1,5 @@
 import { encryptItemId } from './encrypt';
-import { getCurrentWorker } from '../proxy';
-import ufs from 'url-file-size';
+
 const BASE_URL = 'https://vidrock.ru/';
 const SUB_BASE_URL = 'https://sub.vdrk.site';
 
