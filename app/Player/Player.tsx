@@ -450,7 +450,7 @@ const Player = () => {
                       style={{ background: `${bg}22`, color: bg, border: `1px solid ${bg}44` }}
                     >
                       {label}
-                      <span>{source.quality?.replace(/\D/g, "") ? source.quality.replace(/[^0-9p]/gi, "") + "p" : ""}</span>
+                      <span>{source.quality?.replace(/\D/g, "")}</span>
                     </div>
                     <div className="vv-card-info">
                       <div className="vv-card-quality">{source.quality}</div>
