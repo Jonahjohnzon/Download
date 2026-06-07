@@ -44,6 +44,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      className=" scrollbar-thin scrollbar-track-black scrollbar-thumb-white select-none"
     >
       <head><meta name="monetag" content="f812d08ef1bb5d01aaa6bdb313c1d2e4" suppressHydrationWarning/>
       <link rel="icon" href="/logologo.png" sizes="any" />

@@ -4,7 +4,7 @@ export const store = proxy({
     Server:  ListServer[0],
     ServerinUse:ListServer[0].name,
     Check:false,
-    loading:true,
+    loading:false,
     loadingServer:false,
     Type:"",
     Season:"",
@@ -12,6 +12,7 @@ export const store = proxy({
     M3u8Url:"",
     title:"",
     ParamId:"",
+    token:false,
     sources: [] as {
     url: string;
     type: string;
