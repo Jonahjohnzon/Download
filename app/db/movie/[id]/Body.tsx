@@ -15,7 +15,7 @@ const Body = ({ paramId }: { paramId: string }) => {
     const GetData = async () => {
         if(!token) return;
         store.loading = true
-       const result = await ServerFallback(ListServer[0].id, { paramId, Type: 'movie' })
+       const result = await ServerFallback({ paramId, Type: 'movie' })
          if (!result) { 
              store.loading = false
          }

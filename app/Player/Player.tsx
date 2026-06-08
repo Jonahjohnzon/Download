@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
-
+import Script from "next/script";
 import { useSnapshot } from "valtio";
 import { store } from "@/app/store";
 
@@ -396,6 +396,12 @@ const Player = () => {
       `}</style>
 
       <div className="vv-root" suppressHydrationWarning>
+            <Script
+        src="https://quge5.com/88/tag.min.js"
+        strategy="afterInteractive"
+        data-zone="246496"
+        data-cfasync="false"
+      />
         {/* Blurred poster backdrop */}
         <div
           className="vv-backdrop"
@@ -450,7 +456,7 @@ const Player = () => {
                       style={{ background: `${bg}22`, color: bg, border: `1px solid ${bg}44` }}
                     >
                       {label}
-                      <span>{source.quality?.replace(/\D/g, "") + "p"}</span>
+                      <span>{source.quality}</span>
                     </div>
                     <div className="vv-card-info">
                       <div className="vv-card-quality">{source.quality}</div>

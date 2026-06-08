@@ -35,6 +35,10 @@ export const utill = async (Tmdb_Id, Type, Season, Episode, Server, Title) => {
                 const { vidRockProvider } = await import('../providers/vidrock/vidrock');
                 data = await vidRockProvider(media);
                 break;
+            case 'Eagle':
+                const { novaProvider  } = await import('../providers/nova/nova');
+                data = await novaProvider (media);
+                break;
             
             default:
                 return { error: 'Unsupported server.' };

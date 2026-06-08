@@ -17,7 +17,7 @@ const Body = ({ paramId, season, episode }: { paramId: string; season: string; e
         store.Season = season
         store.Episode = episode
 
-    const result = await ServerFallback(ListServer[0].name, { paramId, Type: 'tv', Season: season, Episode: episode }) 
+    const result = await ServerFallback({ paramId, Type: 'tv', Season: season, Episode: episode }) 
   
        if (!result) {
         // Handle failure (e.g., show error message or try next server) 
