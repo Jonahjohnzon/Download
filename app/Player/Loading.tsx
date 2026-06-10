@@ -1,9 +1,16 @@
 "use client";
 import { Turnstile } from "@marsidev/react-turnstile";
+import { ServerFallback } from "../UseServerFallback";
+import { useSnapshot } from "valtio";
 import { store } from "../store";
 export default function Loading() {
+    const Store = useSnapshot(store);
+    const paramId = Store.ParamId
+    const Type = Store.Type
+    const season = Store.Season
+    const episode = Store.Episode
 
-
+   
   return (
     <div className="relative flex items-center justify-center w-full h-screen bg-black overflow-hidden">
   {/* Spinner behind */}
@@ -16,19 +23,14 @@ export default function Loading() {
     <Turnstile
       siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
       onSuccess={async (token) => {
-        const res = await fetch("/api/verify-turnstile", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ token }),
-        });
-
-        const data = await res.json();
-
-        if (data.success) {
-          store.token = true;
+        if (Type == 'movie')
+        { 
+        await ServerFallback({ paramId, Type: 'movie', token })
         }
+        else{
+        await ServerFallback({ paramId, Type: 'tv', Season: season, Episode: episode, token  }) 
+        }
+    
       }}
     />
   </div>

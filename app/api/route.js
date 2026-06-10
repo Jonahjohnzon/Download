@@ -73,12 +73,21 @@ const fetchTMDB = async (Tmdb_Id, Type, Season, Episode, TMDB_API_KEY) => {
 export const GET = async (req) => {
     const TMDB_API_KEY = process.env.DB_BEARER;
     try {
+        const token = req.headers.get("x-turnstile-token");
+          if (!token) {
+        return NextResponse.json(
+        { success: false, error: "Missing token" },
+        { status: 400 }
+         );
+        }
         const Url = new URL(req.url)
         const Tmdb_Id = Url.searchParams.get('Tmdb_Id')
         const Type = Url.searchParams.get('Type')
         const Season = Url.searchParams.get('Season')
         const Episode = Url.searchParams.get('Episode')
         const Server = Url.searchParams.get('Server')
+        
+     
         if (!Tmdb_Id || !Type || !Server) {
             return NextResponse.json({ error: 'Missing required query parameters.' }, { status: 400 })
         }
@@ -86,6 +95,27 @@ export const GET = async (req) => {
         if (Type === 'tv' && (!Season || !Episode)) {
             return NextResponse.json({ error: 'Missing Season/Episode parameters for TV type.' }, { status: 400 })
         }
+
+            const formData = new URLSearchParams();
+            formData.append("secret", process.env.TURNSTILE_SECRET);
+            formData.append("response", token);
+
+             const results = await fetch(
+            "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+            {
+             method: "POST",
+             body: formData,
+            }
+            );
+            const data = await results.json();
+           
+            if (!data.success) {
+             return NextResponse.json(
+             { success: false, error: "Bot detected" },
+            { status: 403 }
+            );
+            }
+
 const tmdbData = await fetchTMDB(
   Tmdb_Id,
   Type,

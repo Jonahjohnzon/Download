@@ -3,28 +3,21 @@
 import Player from '@/app/Player/Player'
 import  { useEffect } from 'react'
 import { store } from '@/app/store'
-import { ServerFallback } from '../../../UseServerFallback'
-import {ListServer} from '../../../Player/ListServers'
 import { useSnapshot } from 'valtio/react'
 import Loading from '@/app/Player/Loading'
 
-const Body = ({ paramId }: { paramId: string }) => {
+const Body = ({ paramId }: { paramId: string}) => {
     const Store = useSnapshot(store);
     const loading = Store.loading
     const token = Store.token
-    const GetData = async () => {
-        if(!token) return;
-        store.loading = true
-       const result = await ServerFallback({ paramId, Type: 'movie' })
-         if (!result) { 
-             store.loading = false
-         }
-        }
 
 
-    useEffect(() => {
-      GetData()
-    }, [token])
+useEffect(()=>{
+    store.ParamId = paramId
+    store.Type = 'movie'
+},[])
+
+   
 
     if(!token) return <Loading/>
 

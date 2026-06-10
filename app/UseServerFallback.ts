@@ -7,6 +7,7 @@ interface MediaParams {
     Type: 'movie' | 'tv'
     Season?: string
     Episode?: string
+    token?: string
 }
 
 export const ServerFallback = async (params: MediaParams): Promise<boolean> => {
@@ -17,8 +18,8 @@ export const ServerFallback = async (params: MediaParams): Promise<boolean> => {
 
         try {
             const response = params.Type === 'movie'
-                ? await GetMovieFetch({ Tmdb_Id: params.paramId, Type: 'movie', Server: server })
-                : await GetMovieFetch({ Tmdb_Id: params.paramId, Type: 'tv', Season: params.Season, Episode: params.Episode, Server: server })
+                ? await GetMovieFetch({ Tmdb_Id: params.paramId, Type: 'movie', Server: server , token: params.token})
+                : await GetMovieFetch({ Tmdb_Id: params.paramId, Type: 'tv', Season: params.Season, Episode: params.Episode, Server: server, token: params.token })
 
             if (response.error || !response.sources?.length) {
                 // Last server — give up
@@ -31,7 +32,6 @@ export const ServerFallback = async (params: MediaParams): Promise<boolean> => {
                 // Try next server
                 continue
             }
-
             store.ParamId = params.paramId
             store.Type = params.Type
             store.ServerinUse = server
@@ -44,6 +44,7 @@ export const ServerFallback = async (params: MediaParams): Promise<boolean> => {
             store.backdrop = response.backdrop
             store.overview = response.overview
             store.loading = false
+            store.token = true;
             return true
 
         } catch {

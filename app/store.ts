@@ -12,6 +12,7 @@ export const store = proxy({
     M3u8Url:"",
     title:"",
     ParamId:"",
+    tokencode:"",
     token:false,
     sources: [] as {
     url: string;
