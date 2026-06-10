@@ -5,10 +5,10 @@ import { useState } from "react";
 const BASE = "https://db.screenopps.com";
 
 const QUICK_TESTS = [
-  { type: "movie" as const, title: "Fight Club", id: "550" },
-  { type: "movie" as const, title: "Deadpool & Wolverine", id: "533535" },
-  { type: "tv" as const, title: "Breaking Bad", id: "1396", season: "1", episode: "1" },
-  { type: "tv" as const, title: "HOTD", id: "94997", season: "1", episode: "1" },
+  { type: "movie" as const, title: "The Shawshank Redemption", id: "tt0111161", channel:"imdb" },
+  { type: "movie" as const, title: "Deadpool & Wolverine", id: "533535",channel:"tmdb" },
+  { type: "tv" as const, title: "Breaking Bad", id: "tt0903747", season: "1", episode: "1",channel:"imdb" },
+  { type: "tv" as const, title: "HOTD", id: "94997", season: "1", episode: "1", channel:"tmdb" },
 ];
 
 export default function Home() {
@@ -312,11 +312,11 @@ export default function Home() {
           {/* Movie */}
           {tab === "movie" && (
             <div>
-              <div className="field-label">TMDB Movie ID</div>
+              <div className="field-label">TMDB/IMDB Movie ID</div>
               <input
                 className="input"
                 type="number"
-                placeholder="e.g. 550, 27205, 787699"
+                placeholder="e.g. 550, 27205, tt787699"
                 value={movieId}
                 onChange={(e) => setMovieId(e.target.value)}
               />
@@ -344,7 +344,7 @@ export default function Home() {
           {/* TV */}
           {tab === "tv" && (
             <div>
-              <div className="field-label">TMDB Show ID</div>
+              <div className="field-label">TMDB/IMDB Show ID</div>
               <input
                 className="input"
                 type="number"
@@ -416,7 +416,7 @@ export default function Home() {
                 </span>
                 <div className="qc-title">{item.title}</div>
                 <div className="qc-meta">
-                  tmdb: {item.id}
+                  {item.channel}: {item.id}
                   {item.type === "tv" && ` · S${item.season}E${item.episode}`}
                 </div>
               </button>

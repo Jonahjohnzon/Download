@@ -4,11 +4,32 @@ const { utill } = await import('./getmovie/utill/utill')
 
 const fetchTMDB = async (Tmdb_Id, Type, Season, Episode, TMDB_API_KEY) => {
     try {
-        const base = `https://api.themoviedb.org/3/${Type}/${Tmdb_Id}`;
+
         const headers = {
             Authorization: `Bearer ${TMDB_API_KEY}`,
             'Content-Type': 'application/json'
         };
+
+        //check if imdb
+        let tmdbId = Tmdb_Id;
+        if (/^tt\d+$/.test(Tmdb_Id)) {
+            
+         const findResp = await fetch(
+        `https://api.themoviedb.org/3/find/${Tmdb_Id}?external_source=imdb_id`,
+        { headers }
+            );
+
+         const findData = await findResp.json();
+
+      if (Type === "movie") {
+        tmdbId = findData.movie_results?.[0]?.id;
+      } else {
+        tmdbId = findData.tv_results?.[0]?.id;
+      }
+        }
+        
+        const base = `https://api.themoviedb.org/3/${Type}/${tmdbId }`;
+  
 
         const [mainRes, externalRes] = await Promise.all([
             fetch(base, { headers }),
@@ -43,9 +64,9 @@ const fetchTMDB = async (Tmdb_Id, Type, Season, Episode, TMDB_API_KEY) => {
                 : null;
         }
 
-        return { title, poster, backdrop, overview, imdb_id, episode_title, episode_still };
+        return { title, poster, backdrop, overview, imdb_id, episode_title, episode_still, tmdbId };
     } catch {
-        return { title: 'Unknown', poster: null, backdrop: null, overview: '', imdb_id: null };
+        return { title: 'Unknown', poster: null, backdrop: null, overview: '', imdb_id: null, tmdbId };
     }
 };
 
@@ -75,7 +96,7 @@ const tmdbData = await fetchTMDB(
 
 const [result, tmdb] = await Promise.all([
   utill(
-    Tmdb_Id,
+    tmdbData.tmdbId,
     Type,
     Season,
     Episode,
