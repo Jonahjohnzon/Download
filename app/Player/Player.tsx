@@ -395,7 +395,7 @@ const Player = () => {
         }
       `}</style>
 
-      <div className="vv-root" suppressHydrationWarning>
+      <div className="vv-root" suppressHydrationWarning > 
             <Script
         src="https://quge5.com/88/tag.min.js"
         strategy="afterInteractive"

@@ -13,42 +13,59 @@ const CACHE_TTL = {
 
 const getTTL = (Server) => CACHE_TTL[Server] ?? CACHE_TTL.default;
 
+const SERVER_ORDER = ['Viper', 'Eagle'];
+
+const fetchFromServer = async (Server, media) => {
+    switch (Server) {
+        case 'Viper': {
+            const { vidRockProvider } = await import('../providers/vidrock/vidrock');
+            return await vidRockProvider(media);
+        }
+        case 'Eagle': {
+            const { novaProvider } = await import('../providers/nova/nova');
+            return await novaProvider(media);
+        }
+        default:
+            return { error: 'Unsupported server.' };
+    }
+};
+
 export const utill = async (Tmdb_Id, Type, Season, Episode, Server, Title) => {
     try {
-        const key = getCacheKey(Tmdb_Id, Type, Season, Episode, Server, Title);
-        const ttl = getTTL(Server);
+        const startIndex = SERVER_ORDER.indexOf(Server);
+        const serversToTry = startIndex !== -1
+            ? SERVER_ORDER.slice(startIndex)
+            : [Server];
 
-        if (cache.has(key)) {
-            const { data, timestamp } = cache.get(key);
-            if (Date.now() - timestamp < ttl) {
+        let lastResult;
+
+        for (const currentServer of serversToTry) {
+            const key = getCacheKey(Tmdb_Id, Type, Season, Episode, currentServer);
+            const ttl = getTTL(currentServer);
+
+            if (cache.has(key)) {
+                const { data, timestamp } = cache.get(key);
+                if (Date.now() - timestamp < ttl) {
+                    if (data?.sources?.length > 0) {
+                        return data;
+                    }
+                } else {
+                    cache.delete(key);
+                }
+            }
+
+            const media = { Tmdb_Id, Type, Season, Episode, Server: currentServer, Title };
+            const data = await fetchFromServer(currentServer, media);
+            lastResult = data;
+
+            if (data?.sources?.length > 0) {
+                cache.set(key, { data, timestamp: Date.now() });
                 return data;
             }
-            cache.delete(key);
         }
 
-
-        const media = { Tmdb_Id, Type, Season, Episode, Server, Title };
-        let data;
-        
-        switch (Server) {
-            case 'Viper':
-                const { vidRockProvider } = await import('../providers/vidrock/vidrock');
-                data = await vidRockProvider(media);
-                break;
-            case 'Eagle':
-                const { novaProvider  } = await import('../providers/nova/nova');
-                data = await novaProvider (media);
-                break;
-            
-            default:
-                return { error: 'Unsupported server.' };
-        }
-
-        if (data?.sources?.length > 0) {
-            cache.set(key, { data, timestamp: Date.now() });
-        }
-
-        return data;
+        // All servers exhausted — return the last response (even if empty)
+        return lastResult;
     } catch (error) {
         console.error(error);
         return { error: 'An error occurred while fetching data.' };
