@@ -53,7 +53,7 @@ function parseTrendiSources(rawArray, media) {
   const entryPattern = /"quality":\[0,"([^"]+)"\],"file_size":\[0,"([^"]+)"\],"url":\[0,"(https:\/\/[^"]+)"\]/g;
   const fileNameMatches = [...slicedDecoded.matchAll(/"file_name":\[0,"([^"]+)"/g)];
   const urlMatches = [...slicedDecoded.matchAll(/https:\/\/[^\s"]+\/tgstream\/stream\/\d+/g)];
-
+  const PROXY_BASE = "/api/download-content";
   const sources = [];
   for (const match of slicedDecoded.matchAll(entryPattern)) {
     const [, quality, size, url] = match;
@@ -62,7 +62,7 @@ function parseTrendiSources(rawArray, media) {
       .match(/"variant":\[0,(?:"([^"]+)"|null)\]/);
 
     sources.push({
-      url,
+      url:`${PROXY_BASE}?url=${encodeURIComponent(url)}`,
       quality,
       size,
       variant: variantMatch?.[1] ?? null,
@@ -70,17 +70,18 @@ function parseTrendiSources(rawArray, media) {
   }
   const qualityOrder = { '2160p': 0, '1080p': 1, '720p': 2, '480p': 3, '360p': 4, 'hdrip': 5 };
 
-sources.sort((a, b) => 
+sources.sort((a, b) =>
   (qualityOrder[a.quality] ?? 99) - (qualityOrder[b.quality] ?? 99)
 );
 
-  const subtitleUrl = fileNameMatches.length > 0
+  const subtitleUrlRaw = fileNameMatches.length > 0
     ? urlMatches[urlMatches.length - 1]?.[0] ?? null
     : null;
 
-  return { sources, subtitleUrl };
+  return { sources, subtitleUrl: subtitleUrlRaw }; // Return raw subtitle URL
 }
 // ─── Map to your source format ───────────────────────────────────────────────
+
 
 
 
@@ -89,35 +90,46 @@ sources.sort((a, b) =>
 const getSource = async  (media) =>{
     try{
     const url = buildUrl(media)
-    
+
     const res = await fetch(url,{
         headers:HEADERS
     })
-   
+
     const html = await res.text()
-   
-const { sources: parsed, subtitleUrl } = parseTrendiSources([html],media);
 
-const sources = parsed.map(s => ({
-  url:   s.url,
-  size: s.size,
-  type:    'mp4',
-  quality: s.quality,   // "720p", "2160p", "hdrip" etc.
-  label:    s.quality,
-  audioTracks: [{ language: 'eng', label: 'English' }],
-  provider: { id:"Screenopps", name: "Screenopps" },
-}));
+    const { sources: parsedSources, subtitleUrl: rawSubtitleUrl } = parseTrendiSources([html],media); // Renamed to rawSubtitleUrl
+
+    // Proxy the subtitle URL if it exists
+    let proxiedSubtitleUrl = null;
+    if (rawSubtitleUrl) {
+        // Assuming your proxy worker can handle .vtt, .srt, etc. files
+        // The /download-content endpoint should handle the Content-Type appropriately.
+        proxiedSubtitleUrl = `${"/api/download-content"}?url=${encodeURIComponent(rawSubtitleUrl)}`;
+    }
 
 
+    const sources = parsedSources.map(s => ({
+      url:   s.url, // Already proxied in parseTrendiSources
+      size: s.size,
+      type:    'mp4', // Assuming mp4 for now, adjust if other types are possible
+      quality: s.quality,   // "720p", "2160p", "hdrip" etc.
+      label:    s.quality,
+      audioTracks: [{ language: 'eng', label: 'English' }],
+      provider: { id:"Screenopps", name: "Screenopps" },
+    }));
 
-const subtitles = subtitleUrl
-  ? [{ url: subtitleUrl, language: 'en', label: 'English' }]
-  :  [] // fallback to your existing fetcher
 
-return { sources, subtitles, diagnostics: [] };
-    
+
+    const subtitles = rawSubtitleUrl
+      ? [{ url: proxiedSubtitleUrl, language: 'en', label: 'English' }]
+      :  [] // fallback to your existing fetcher
+
+    return { sources, subtitles, diagnostics: [] };
+
     }catch(err){
-    console.log(err)
+    console.log(err) // Consider more robust error logging
+    // Return a structure that indicates failure or an empty result
+    return { sources: [], subtitles: [], diagnostics: [{ message: err.message }] };
   }
 }
 
