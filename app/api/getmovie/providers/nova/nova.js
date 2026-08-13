@@ -53,7 +53,7 @@ function parseTrendiSources(rawArray, media) {
   const entryPattern = /"quality":\[0,"([^"]+)"\],"file_size":\[0,"([^"]+)"\],"url":\[0,"(https:\/\/[^"]+)"\]/g;
   const fileNameMatches = [...slicedDecoded.matchAll(/"file_name":\[0,"([^"]+)"/g)];
   const urlMatches = [...slicedDecoded.matchAll(/https:\/\/[^\s"]+\/tgstream\/stream\/\d+/g)];
-  const PROXY_BASE = "/api/download-content";
+  const PROXY_BASE = "https://nameless-salad-8735.willjohnsonn150.workers.dev";
   const sources = [];
   for (const match of slicedDecoded.matchAll(entryPattern)) {
     const [, quality, size, url] = match;
