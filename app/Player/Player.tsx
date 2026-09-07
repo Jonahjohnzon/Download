@@ -1,17 +1,189 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @next/next/no-img-element */
 "use client";
+import { useEffect, useState } from "react";
 import Script from "next/script";
 import { useSnapshot } from "valtio";
 import { store } from "@/app/store";
 
+type VideoSource = {
+  quality: string; // e.g. "480p" — kept as `quality` to match qualityColor()
+  label?: string;
+  size?: string; // human-readable, e.g. "150 MB"
+  url: string;
+};
+
+type Subtitle = {
+  label: string;
+  url: string;
+};
+
+function formatBytes(bytes?: number | string): string {
+  const n = Number(bytes);
+  if (!n || Number.isNaN(n)) return "Unknown";
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(0)} MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+const norm = (s: string) => (s || "").trim().toLowerCase();
 
 const Player = () => {
-  const snap = useSnapshot(store);
+  const Store = useSnapshot(store);
 
-  const sources = snap.sources;
-  const subtitles = snap.subtitles;
-  const title = snap.title;
-  const backgroundposter = snap.poster;
+  const title = Store.title;
+  const backgroundposter = Store.poster;
+
+  const paramId = Store.ParamId;
+  const Type = Store.Type; // 'tv' | 'movie'
+  const seasonParam = Store.Season;
+  const episodeParam = Store.Episode;
+
+  const [sources, setSources] = useState<VideoSource[]>([]);
+  const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!title || !paramId || !Type) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+
+    (async () => {
+      setLoading(true);
+      try {
+        // movie subjects use subjectType 1, tv/series use subjectType 2 —
+        // same convention DScreen's RN matching uses.
+        const expectedSubjectType = Type === "tv" ? 2 : 1;
+
+        const soRes = await fetch(
+          `https://api.screenopps.com/search?q=${encodeURIComponent(title)}`
+        );
+        const soData = await soRes.json();
+        const items = soData?.items ?? [];
+
+        const titleNorm = norm(title);
+        // TV entries are frequently suffixed ("S1-S6", "[English]"), so a
+        // startsWith check catches them; movies are usually the bare title.
+        let candidates =
+          Type === "tv"
+            ? items.filter((it: any) => norm(it.name).startsWith(titleNorm))
+            : items.filter((it: any) => norm(it.name) === titleNorm);
+        if (!candidates.length) {
+          candidates = items.filter((it: any) => norm(it.name).includes(titleNorm));
+        }
+        if (!candidates.length) candidates = items;
+
+        // Cap how many we probe with a detail call, to avoid a request
+        // storm on a very generic title.
+        const capped = candidates.slice(0, 6);
+
+        const detailResults = await Promise.allSettled(
+          capped.map((c: any) =>
+            fetch(`https://api.screenopps.com/detail/${c.slug}`).then((r) => r.json())
+          )
+        );
+
+        let best: { item: any; detail: any } | null = null;
+        detailResults.forEach((res, idx) => {
+          if (best) return; // first subjectType match wins — no TMDB
+          // season-count available here to refine further like DScreen does.
+          if (res.status !== "fulfilled") return;
+          const subj = res.value?.data?.subject;
+          if (!subj || subj.subjectType !== expectedSubjectType) return;
+          best = { item: capped[idx], detail: res.value.data };
+        });
+
+        // Nothing matched subjectType — fall back to the first candidate we
+        // could actually fetch detail for, so we still show *something*.
+        if (!best) {
+          const firstOk = detailResults.find(
+            (r) => r.status === "fulfilled" && (r as any).value?.data
+          );
+          if (firstOk) {
+            const idx = detailResults.indexOf(firstOk);
+            best = { item: capped[idx], detail: (firstOk as any).value.data };
+          }
+        }
+
+        if (cancelled || !best) {
+          setSources([]);
+          setSubtitles([]);
+          return;
+        }
+
+        const { item, detail } = best;
+        const seasonList = detail?.resource?.seasons ?? [];
+        // Movies are filed under se: 0, ep: 0; series start at se/ep from
+        // the Season/Episode already chosen upstream (Store.Season/
+        // Store.Episode), falling back to the first season entry if those
+        // aren't set. Same se=0/ep=0-for-movies convention DScreen uses.
+        const isMovie = expectedSubjectType === 1;
+        const se = isMovie ? 0 : Number(seasonParam) || seasonList[0]?.se || 1;
+        const ep = isMovie ? 0 : Number(episodeParam) || 1;
+
+        const [streamRes, capRes] = await Promise.allSettled([
+          fetch(
+            `https://api.screenopps.com/api/stream/${item.subject_id}?detail_path=${item.slug}&se=${se}&ep=${ep}`
+          ).then((r) => r.json()),
+          fetch(
+            `https://api.screenopps.com/api/stream/${item.subject_id}/captions?detail_path=${item.slug}&se=${se}&ep=${ep}`
+          ).then((r) => r.json()),
+        ]);
+
+        if (cancelled) return;
+
+        if (streamRes.status === "fulfilled") {
+          const rawSources = streamRes.value?.sources ?? [];
+          setSources(
+            rawSources.map((s: any) => ({
+              quality: s.resolution,
+              label: `${s.resolution} · ${s.format}`,
+              size: formatBytes(s.size),
+              url: s.url,
+            }))
+          );
+        } else {
+          console.error("[Player] Failed to load stream info:", streamRes.reason);
+          setSources([]);
+        }
+
+        if (capRes.status === "fulfilled") {
+          const raw = capRes.value;
+          const rawCaptions: any[] = Array.isArray(raw)
+            ? raw
+            : raw?.captions ?? raw?.subtitles ?? raw?.items ?? [];
+          setSubtitles(
+            rawCaptions
+              .map((c: any, idx: number) => ({
+                label:
+                  typeof c === "string"
+                    ? c
+                    : c?.lanName || c?.lan || c?.language || `Subtitle ${idx + 1}`,
+                url: typeof c === "string" ? "" : c?.url,
+              }))
+              .filter((c) => !!c.url)
+          );
+        } else {
+          console.error("[Player] Failed to load captions:", capRes.reason);
+          setSubtitles([]);
+        }
+      } catch (err) {
+        console.error("[Player] Failed to resolve title/stream:", err);
+        if (!cancelled) {
+          setSources([]);
+          setSubtitles([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [title, paramId, Type, seasonParam, episodeParam]);
 
   const downloadVtt = async ({ url, label }: { url: string; label: string }) => {
     try {
@@ -29,8 +201,7 @@ const Player = () => {
   };
 
   const downloadFile = ({ url, quality }: { url: string; quality: string }) => {
-   
-    const t = snap.title;
+    const t = Store.title;
     const a = document.createElement("a");
     a.href = url;
     a.download = `${t} - ${quality}`;
@@ -438,61 +609,121 @@ const Player = () => {
           </div>
 
                   {/* Video Sources */}
-          {sources?.length > 0 ? (
-            <div>
-              <div className="vv-section-label">Video</div>
-              {sources.map((source, index) => {
-                const { bg, label } = qualityColor(source.quality);
-                return (
-                  <div
-                    key={index}
-                    className="vv-card"
-                    onClick={() => downloadFile(source)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => e.key === "Enter" && downloadFile(source)}
-                  >
-                    <div
-                      className="vv-quality-chip"
-                      style={{ background: `${bg}22`, color: bg, border: `1px solid ${bg}44` }}
-                    >
-                      {label}
-                      <span>{source.quality}</span>
-                    </div>
-                    <div className="vv-card-info">
-                      <div className="vv-card-quality">{source.quality}</div>
-                      {source.size && source.size !== "Unknown" && (
-                        <div className="vv-card-size">{source.size}</div>
-                      )}
-                    </div>
-                    <button className="vv-dl-btn" tabIndex={-1}>
-                      <svg className="vv-dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                        <polyline points="7 10 12 15 17 10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
-                      </svg>
-                      <span>Download</span>
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
+          {loading ? (
             <div className="vv-unavailable">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
-              </svg>
-              <p>Movie currently unavailable</p>
-              <span>Check back later or try a different movie</span>
+              <p>Loading…</p>
+              <span>Fetching available quality and subtitles</span>
             </div>
-          )}
+          ) : sources?.length > 0 ? (
+  <div>
+    <div className="vv-section-label">Video</div>
+
+    {sources.map((source, index) => {
+              const { bg, label } = qualityColor(source.quality);
+
+              return (
+                <div
+                  key={index}
+                  className="vv-card"
+                  onClick={() => downloadFile(source)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      downloadFile(source);
+                    }
+                  }}
+                >
+                  <div
+                    className="vv-quality-chip"
+                    style={{
+                      background: `${bg}22`,
+                      color: bg,
+                      border: `1px solid ${bg}44`
+                    }}
+                  >
+                    {label}
+                    <span>{source.quality}</span>
+                  </div>
+
+                  <div className="vv-card-info">
+
+                    {/* Filename */}
+                    <div className="vv-card-quality">
+                      {source.label || source.quality}
+                    </div>
+
+                    {/* Size */}
+                    {source.size &&
+                      source.size !== "Unknown" && (
+                        <div className="vv-card-size">
+                          {source.size}
+                        </div>
+                    )}
+
+                  </div>
+
+                  <button
+                    className="vv-dl-btn"
+                    tabIndex={-1}
+                  >
+                    <svg
+                      className="vv-dl-icon"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line
+                        x1="12"
+                        y1="15"
+                        x2="12"
+                        y2="3"
+                      />
+                    </svg>
+
+                    <span>Download</span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="vv-unavailable">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line
+                x1="4.93"
+                y1="4.93"
+                x2="19.07"
+                y2="19.07"
+              />
+            </svg>
+
+            <p>Movie currently unavailable</p>
+            <span>
+              Check back later or try a different movie
+            </span>
+          </div>
+        )}
 
           {/* Subtitles */}
           {(subtitles?.length > 0 && sources?.length > 0 ) && (
             <div className="vv-subs-section">
               <div className="vv-section-label">Subtitles</div>
-              {subtitles.map((sub, index) => (
+              {subtitles.map((sub, index) => {
+                return(
                 <div
                   key={index}
                   className="vv-sub-card"
@@ -512,7 +743,7 @@ const Player = () => {
                     .VTT
                   </button>
                 </div>
-              ))}
+              )})}
             </div>
           )}
 
