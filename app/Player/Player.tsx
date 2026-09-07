@@ -559,6 +559,21 @@ const Player = () => {
           color: #3a3a5a;
         }
 
+        /* Loading spinner — round rotating ring, signals "please wait" at
+           a glance rather than relying on the text alone. */
+        .vv-spinner {
+          width: 34px;
+          height: 34px;
+          border-radius: 50%;
+          border: 3px solid rgba(255,255,255,0.08);
+          border-top-color: #e63946;
+          animation: vv-spin 0.75s linear infinite;
+        }
+
+        @keyframes vv-spin {
+          to { transform: rotate(360deg); }
+        }
+
         @media (max-width: 500px) {
           .vv-header { flex-direction: column; align-items: flex-start; gap: 16px; }
           .vv-poster { width: 80px; min-width: 80px; }
@@ -611,6 +626,7 @@ const Player = () => {
                   {/* Video Sources */}
           {loading ? (
             <div className="vv-unavailable">
+              <div className="vv-spinner" />
               <p>Loading…</p>
               <span>Fetching available quality and subtitles</span>
             </div>
