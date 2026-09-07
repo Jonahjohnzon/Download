@@ -43,147 +43,358 @@ const Player = () => {
   const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!title || !paramId || !Type) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
 
-    (async () => {
-      setLoading(true);
-      try {
-        // movie subjects use subjectType 1, tv/series use subjectType 2 —
-        // same convention DScreen's RN matching uses.
-        const expectedSubjectType = Type === "tv" ? 2 : 1;
-
-        const soRes = await fetch(
-          `https://api.screenopps.com/search?q=${encodeURIComponent(title)}`
-        );
-        const soData = await soRes.json();
-        const items = soData?.items ?? [];
-
-        const titleNorm = norm(title);
-        // TV entries are frequently suffixed ("S1-S6", "[English]"), so a
-        // startsWith check catches them; movies are usually the bare title.
-        let candidates =
-          Type === "tv"
-            ? items.filter((it: any) => norm(it.name).startsWith(titleNorm))
-            : items.filter((it: any) => norm(it.name) === titleNorm);
-        if (!candidates.length) {
-          candidates = items.filter((it: any) => norm(it.name).includes(titleNorm));
-        }
-        if (!candidates.length) candidates = items;
-
-        // Cap how many we probe with a detail call, to avoid a request
-        // storm on a very generic title.
-        const capped = candidates.slice(0, 6);
-
-        const detailResults = await Promise.allSettled(
-          capped.map((c: any) =>
-            fetch(`https://api.screenopps.com/detail/${c.slug}`).then((r) => r.json())
-          )
-        );
-
-        let best: { item: any; detail: any } | null = null;
-        detailResults.forEach((res, idx) => {
-          if (best) return; // first subjectType match wins — no TMDB
-          // season-count available here to refine further like DScreen does.
-          if (res.status !== "fulfilled") return;
-          const subj = res.value?.data?.subject;
-          if (!subj || subj.subjectType !== expectedSubjectType) return;
-          best = { item: capped[idx], detail: res.value.data };
-        });
-
-        // Nothing matched subjectType — fall back to the first candidate we
-        // could actually fetch detail for, so we still show *something*.
-        if (!best) {
-          const firstOk = detailResults.find(
-            (r) => r.status === "fulfilled" && (r as any).value?.data
-          );
-          if (firstOk) {
-            const idx = detailResults.indexOf(firstOk);
-            best = { item: capped[idx], detail: (firstOk as any).value.data };
+        useEffect(() => {
+          if (!title || !paramId || !Type) {
+            setLoading(false);
+            return;
           }
-        }
 
-        if (cancelled || !best) {
-          setSources([]);
-          setSubtitles([]);
-          return;
-        }
+          let cancelled = false;
 
-        const { item, detail } = best;
-        const seasonList = detail?.resource?.seasons ?? [];
-        // Movies are filed under se: 0, ep: 0; series start at se/ep from
-        // the Season/Episode already chosen upstream (Store.Season/
-        // Store.Episode), falling back to the first season entry if those
-        // aren't set. Same se=0/ep=0-for-movies convention DScreen uses.
-        const isMovie = expectedSubjectType === 1;
-        const se = isMovie ? 0 : Number(seasonParam) || seasonList[0]?.se || 1;
-        const ep = isMovie ? 0 : Number(episodeParam) || 1;
+          (async () => {
+            setLoading(true);
 
-        const [streamRes, capRes] = await Promise.allSettled([
-          fetch(
-            `https://api.screenopps.com/api/stream/${item.subject_id}?detail_path=${item.slug}&se=${se}&ep=${ep}`
-          ).then((r) => r.json()),
-          fetch(
-            `https://api.screenopps.com/api/stream/${item.subject_id}/captions?detail_path=${item.slug}&se=${se}&ep=${ep}`
-          ).then((r) => r.json()),
+            try {
+              const expectedSubjectType = Type === "tv" ? 2 : 1;
+
+              // Search Screenopps
+              const soRes = await fetch(
+                `https://api.screenopps.com/search?q=${encodeURIComponent(title)}`
+              );
+
+              if (!soRes.ok) {
+                throw new Error(`Search failed: ${soRes.status}`);
+              }
+
+              const soData = await soRes.json();
+              const items: any[] = Array.isArray(soData?.items)
+                ? soData.items
+                : [];
+
+              if (!items.length) {
+                if (!cancelled) {
+                  setSources([]);
+                  setSubtitles([]);
+                }
+                return;
+              }
+
+              const titleNorm = norm(title);
+
+              // Score search results by title similarity
+              const getTitleScore = (candidateTitle: string): number => {
+                const candidateNorm = norm(candidateTitle);
+
+                if (!candidateNorm || !titleNorm) {
+                  return 0;
+                }
+
+                // Exact match
+                if (candidateNorm === titleNorm) {
+                  return 100;
+                }
+
+                // TV titles can contain things such as:
+                // "Breaking Bad S1-S5"
+                // "Breaking Bad [English]"
+                if (
+                  Type === "tv" &&
+                  candidateNorm.startsWith(titleNorm)
+                ) {
+                  return 80;
+                }
+
+                // Candidate contains the complete requested title
+                if (candidateNorm.includes(titleNorm)) {
+                  return 50;
+                }
+
+                // Requested title contains candidate title
+                if (titleNorm.includes(candidateNorm)) {
+                  return 40;
+                }
+
+                return 0;
+              };
+
+              const candidates = items
+                .map((item: any) => ({
+                  item,
+                  score: getTitleScore(item?.name || ""),
+                }))
+                .filter(
+                  (candidate: { item: any; score: number }) =>
+                    candidate.score > 0 &&
+                    candidate.item?.slug &&
+                    candidate.item?.subject_id
+                )
+                .sort(
+                  (
+                    a: { item: any; score: number },
+                    b: { item: any; score: number }
+                  ) => b.score - a.score
+                )
+                .slice(0, 6);
+
+              // IMPORTANT:
+              // Do not choose a random Screenopps result when there is
+              // no title match.
+              if (!candidates.length) {
+                if (!cancelled) {
+                  setSources([]);
+                  setSubtitles([]);
+                }
+                return;
+              }
+
+              // Fetch details for the best title candidates
+              const detailResults = await Promise.allSettled(
+                candidates.map(({ item }: { item: any }) =>
+                  fetch(
+                    `https://api.screenopps.com/detail/${encodeURIComponent(
+                      item.slug
+                    )}`
+                  ).then(async (response) => {
+                    if (!response.ok) {
+                      throw new Error(
+                        `Detail request failed: ${response.status}`
+                      );
+                    }
+
+                    return response.json();
+                  })
+                )
+              );
+
+              let best: {
+                item: any;
+                detail: any;
+                score: number;
+              } | null = null;
+
+              for (let idx = 0; idx < detailResults.length; idx++) {
+                const result = detailResults[idx];
+
+                if (result.status !== "fulfilled") {
+                  continue;
+                }
+
+                const detail = result.value?.data;
+                const subject = detail?.subject;
+
+                if (!subject) {
+                  continue;
+                }
+
+                // Never use a movie result for TV or vice versa
+                if (Number(subject.subjectType) !== expectedSubjectType) {
+                  continue;
+                }
+
+                const candidate = candidates[idx];
+
+                let score = candidate.score;
+
+                // Additional TV verification
+                if (Type === "tv") {
+                  const seasonList: any[] =
+                    Array.isArray(detail?.resource?.seasons)
+                      ? detail.resource.seasons
+                      : [];
+
+                  const requestedSeason = Number(seasonParam);
+
+                  if (requestedSeason > 0) {
+                    const seasonExists = seasonList.some(
+                      (season: any) =>
+                        Number(season?.se) === requestedSeason
+                    );
+
+                    if (seasonExists) {
+                      score += 30;
+                    } else {
+                      // If the requested season doesn't exist,
+                      // strongly penalize this candidate.
+                      score -= 50;
+                    }
+                  }
+                }
+
+                if (!best || score > best.score) {
+                  best = {
+                    item: candidate.item,
+                    detail,
+                    score,
+                  };
+                }
+              }
+
+              // No correct movie/TV type found
+              if (cancelled || !best) {
+                if (!cancelled) {
+                  setSources([]);
+                  setSubtitles([]);
+                }
+                return;
+              }
+
+              const { item, detail } = best;
+
+              const seasonList: any[] =
+                Array.isArray(detail?.resource?.seasons)
+                  ? detail.resource.seasons
+                  : [];
+
+              const isMovie = expectedSubjectType === 1;
+
+              const se = isMovie
+                ? 0
+                : Number(seasonParam) ||
+                  Number(seasonList[0]?.se) ||
+                  1;
+
+              const ep = isMovie
+                ? 0
+                : Number(episodeParam) || 1;
+
+              // Fetch stream + subtitles
+              const [streamRes, capRes] = await Promise.allSettled([
+                fetch(
+                  `https://api.screenopps.com/api/stream/${encodeURIComponent(
+                    item.subject_id
+                  )}?detail_path=${encodeURIComponent(
+                    item.slug
+                  )}&se=${encodeURIComponent(se)}&ep=${encodeURIComponent(ep)}`
+                ).then(async (response) => {
+                  if (!response.ok) {
+                    throw new Error(
+                      `Stream request failed: ${response.status}`
+                    );
+                  }
+
+                  return response.json();
+                }),
+
+                fetch(
+                  `https://api.screenopps.com/api/stream/${encodeURIComponent(
+                    item.subject_id
+                  )}/captions?detail_path=${encodeURIComponent(
+                    item.slug
+                  )}&se=${encodeURIComponent(se)}&ep=${encodeURIComponent(ep)}`
+                ).then(async (response) => {
+                  if (!response.ok) {
+                    throw new Error(
+                      `Caption request failed: ${response.status}`
+                    );
+                  }
+
+                  return response.json();
+                }),
+              ]);
+
+              if (cancelled) {
+                return;
+              }
+
+              // Streams
+              if (streamRes.status === "fulfilled") {
+                const rawSources = Array.isArray(streamRes.value?.sources)
+                  ? streamRes.value.sources
+                  : [];
+
+                setSources(
+                  rawSources
+                    .filter((s: any) => s?.url)
+                    .map((s: any) => ({
+                      quality: String(s?.resolution || "Unknown"),
+                      label: `${s?.resolution || "Unknown"} · ${
+                        s?.format || "Unknown"
+                      }`,
+                      size: formatBytes(s?.size),
+                      url: s.url,
+                    }))
+                );
+              } else {
+                console.error(
+                  "[Player] Failed to load stream info:",
+                  streamRes.reason
+                );
+
+                setSources([]);
+              }
+
+              // Subtitles
+              if (capRes.status === "fulfilled") {
+                const raw = capRes.value;
+
+                const rawCaptions: any[] = Array.isArray(raw)
+                  ? raw
+                  : Array.isArray(raw?.captions)
+                  ? raw.captions
+                  : Array.isArray(raw?.subtitles)
+                  ? raw.subtitles
+                  : Array.isArray(raw?.items)
+                  ? raw.items
+                  : [];
+
+                setSubtitles(
+                  rawCaptions
+                    .map((c: any, idx: number) => ({
+                      label:
+                        typeof c === "string"
+                          ? c
+                          : c?.lanName ||
+                            c?.lan ||
+                            c?.language ||
+                            `Subtitle ${idx + 1}`,
+
+                      url:
+                        typeof c === "string"
+                          ? ""
+                          : c?.url || "",
+                    }))
+                    .filter(
+                      (c: Subtitle) => Boolean(c.url)
+                    )
+                );
+              } else {
+                console.error(
+                  "[Player] Failed to load captions:",
+                  capRes.reason
+                );
+
+                setSubtitles([]);
+              }
+            } catch (err) {
+              console.error(
+                "[Player] Failed to resolve title/stream:",
+                err
+              );
+
+              if (!cancelled) {
+                setSources([]);
+                setSubtitles([]);
+              }
+            } finally {
+              if (!cancelled) {
+                setLoading(false);
+              }
+            }
+          })();
+
+          return () => {
+            cancelled = true;
+          };
+        }, [
+          title,
+          paramId,
+          Type,
+          seasonParam,
+          episodeParam,
         ]);
 
-        if (cancelled) return;
 
-        if (streamRes.status === "fulfilled") {
-          const rawSources = streamRes.value?.sources ?? [];
-          setSources(
-            rawSources.map((s: any) => ({
-              quality: s.resolution,
-              label: `${s.resolution} · ${s.format}`,
-              size: formatBytes(s.size),
-              url: s.url,
-            }))
-          );
-        } else {
-          console.error("[Player] Failed to load stream info:", streamRes.reason);
-          setSources([]);
-        }
-
-        if (capRes.status === "fulfilled") {
-          const raw = capRes.value;
-          const rawCaptions: any[] = Array.isArray(raw)
-            ? raw
-            : raw?.captions ?? raw?.subtitles ?? raw?.items ?? [];
-          setSubtitles(
-            rawCaptions
-              .map((c: any, idx: number) => ({
-                label:
-                  typeof c === "string"
-                    ? c
-                    : c?.lanName || c?.lan || c?.language || `Subtitle ${idx + 1}`,
-                url: typeof c === "string" ? "" : c?.url,
-              }))
-              .filter((c) => !!c.url)
-          );
-        } else {
-          console.error("[Player] Failed to load captions:", capRes.reason);
-          setSubtitles([]);
-        }
-      } catch (err) {
-        console.error("[Player] Failed to resolve title/stream:", err);
-        if (!cancelled) {
-          setSources([]);
-          setSubtitles([]);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [title, paramId, Type, seasonParam, episodeParam]);
 
   const downloadVtt = async ({ url, label }: { url: string; label: string }) => {
     try {
