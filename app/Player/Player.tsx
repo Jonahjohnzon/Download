@@ -137,14 +137,12 @@ const Player = () => {
         if (streamRes.status === "fulfilled") {
           const rawSources = streamRes.value?.sources ?? [];
           setSources(
-            rawSources
-              .filter((s: any) => !!s.url && s.url.trim() !== "")
-              .map((s: any) => ({
-                quality: s.resolution,
-                label: `${s.resolution} · ${s.format}`,
-                size: formatBytes(s.size),
-                url: s.url,
-              }))
+            rawSources.map((s: any) => ({
+              quality: s.resolution,
+              label: `${s.resolution} · ${s.format}`,
+              size: formatBytes(s.size),
+              url: s.url,
+            }))
           );
         } else {
           console.error("[Player] Failed to load stream info:", streamRes.reason);
